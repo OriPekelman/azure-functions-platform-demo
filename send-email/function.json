@@ -1,0 +1,20 @@
+{
+  "bindings": [
+    {
+      "type": "httpTrigger",
+      "name": "req",
+      "webHookType": "genericJson",
+      "direction": "in"
+    },
+    {
+      "type": "sendGrid",
+      "name": "message",
+      "from": "ori@platform.sh",
+      "direction": "out",
+      "to": "ori@platform.sh",
+      "subject": "test",
+      "text": "test"
+    }
+  ],
+  "disabled": false
+}

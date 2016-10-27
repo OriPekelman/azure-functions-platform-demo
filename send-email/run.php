@@ -1,5 +1,7 @@
 <?php
+ 
 $apiKey = $_SERVER['SEND_GRID_API_KEY'];
+$platform_deployer_app_url =$_SERVER['DEPLOY_OR_NOT_URL'];
 $api = 'https://api.sendgrid.com/v3/mail/send';
 $request = null;
 $url = null;
@@ -7,93 +9,67 @@ $project = null;
 $payload = null;
 $environment = null;
 $machine_name = null;
+$res = new stdClass();
+$to = new stdClass();
+$from = new stdClass();
+$cont_element = new stdClass();
  
+function autolink($str) {
+$str = ' ' . $str;
+$str = preg_replace(
+     '`([^"=\'>])((http|https)://[^\s<]+[^\s<\.)])`i',
+     '$1<a  href="$2">$2</a>',
+     $str
+);
+$str = substr($str, 1);
+ 
+ return $str;
+}
 if (!getenv('req')) {
   throw new \Exception("Invalid request");
 }
+ 
 $request = json_decode(file_get_contents(getenv('req')));
  
 if (!property_exists($request, 'project')) {
   throw new \Exception("Invalid project");
 }
+ 
+if ($request->type!="environment.branch"){
+  throw new \Exception("Only Supporting Branching for the moment");
+}
+ 
 $project = $request->project;
- 
-if (!property_exists($request, 'payload')) {
-  throw new \Exception("Invalid payload");
-}
-$payload = $request->payload;
- 
-if (!property_exists($payload, 'environment')) {
-  throw new \Exception("Invalid environment");
-}
-$environment = $payload->environment;
- 
-if (!property_exists($environment, 'machine_name')) {
-  throw new \Exception("Invalid machine name");
-}
-$machine_name = $environment->machine_name;
-
-function autolink($str) {
- $str = ' ' . $str;
- $str = preg_replace(
-     '`([^"=\'>])((http|https)://[^\s<]+[^\s<\.)])`i',
-     '$1<a href="$2">$2</a>',
-     $str
- );
- $str = substr($str, 1);
-  
- return $str;
-}
-
+$environment = $request->parameters->environment;
+$parent = $request->parameters->environment;
 $log = autolink($request->log);
+ 
+$deploy_or_not_url  = $platform_deployer_app_url ."?project=".$project . "&environment=".$environment;
+$deploy_or_not_link = '<a style="display: inline-block; color: #ffffff; background-color: #3498db; border: solid 1px #3498db; border-radius: 5px; box-sizing: border-box; cursor: pointer; text-decoration: none; font-size: 14px; font-weight: bold; margin: 0; padding: 12px 25px; text-transform: capitalize; border-color: #3498db;" href="'. $deploy_or_not_url.'">'.$deploy_or_not_url."</a>";
 
-//$url = sprintf("http://%s-%s.eu.platform.sh", $machine_name, $project);
- 
-$request_body = '{
-  "personalizations": [
-    {
-      "to": [
-        {
-          "email": "ori@platform.sh"
-        }
-      ],
-      "subject": "Deploying apps with Platform.sh and Azure Functions is amazing!",
-      "substitutions": {
-                                 "-url-": "%s"
-                  }
-    }
-  ],
-  "template_id": "d4accd8b-4b02-4d40-bcc3-07e93c3e510e",
-  "from": {
-    "email": "noreply@platform.sh"
-  }
-}';
- 
-$formatted_request_body = sprintf($request_body, $log);
- 
-$headers = array();
-$headers[] = "Content-length: " . strlen($formatted_request_body);
-$headers[] = "Content-type: application/json";
-$headers[] = "Authorization: Bearer " . $apiKey;
- 
-try {
-    // Generate curl request
-    $session = curl_init($api);
-    curl_setopt($session, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($session, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($session, CURLOPT_SSL_VERIFYPEER, false);
-    // Tell curl to use HTTP POST
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-    // Tell curl that this is the body of the POST
-    curl_setopt ($session, CURLOPT_POSTFIELDS, $formatted_request_body);
-    // Tell curl not to return headers, but do return the response
-    curl_setopt($session, CURLOPT_HEADER, false);
-    curl_setopt($session, CURLOPT_RETURNTRANSFER, true);
- 
-    // execute
-    curl_exec($session);
-    curl_close($session);
-}
-catch (Exception $ex) {
-    throw $ex;
-}
+$content = "Environment ".$environment." was just created and deployed from parent ". $parent. ".<br><br>\n\n";
+$content .= "<pre>".$log."</pre>";
+$content .= "You can click on the link above to review the changes.<br>";
+$content .= "And if you really like them,  use DeployOrNot to deploy (or not). by visiting:<br>\n\n";
+$content .= $deploy_or_not_link;
+$template = file_get_contents("template.html");
+$content = str_replace("{{content}}", $content ,$template);
+
+$to->name="DeployOrNot";
+$to->email="ori+test@platform.sh";
+$from->name="DeployOrNot";
+$from->email="noreply@platform.sh";
+
+$res->to = $to;
+$res->from = $from;
+
+$res->subject = "Deploying apps with Platform.sh and Azure Functions is amazing!";
+$res->text=$res->subject;
+
+$cont_element->type="text/html";
+$cont_element->value=$content;
+$res->content=[$cont_element];
+
+$res =  json_encode($res);
+
+file_put_contents($_SERVER['message'], $res);

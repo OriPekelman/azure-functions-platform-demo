@@ -25,7 +25,7 @@ if (!property_exists($request, 'project')) {
 if ($request->type!="environment.branch"){
   throw new \Exception("Only Supporting Branching for the moment");
 }
- 
+
 $request = json_decode(file_get_contents(getenv('req')));
 $project = $request->project;
 $environment = $request->parameters->environment;
@@ -36,6 +36,7 @@ $content = str_replace("{{environment}}", $request->parameters->environment,$con
 $content = str_replace("{{parent}}", $request->parameters->environment,$content);
 $content = str_replace("{{log}}", $log, $content);
 
+echo $content;
 $to->name="DeployOrNot";
 $to->email="ori+test@platform.sh";
 $from->name="DeployOrNot";
